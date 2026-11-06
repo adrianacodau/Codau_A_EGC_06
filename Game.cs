@@ -24,6 +24,9 @@ public class Game : GameWindow
     // Starea aplicației (se modifică în OnUpdateFrame, se folosește în OnRenderFrame).
     private int _selected;            // indexul obiectului selectat în _scene (tasta Tab)
     private bool _wireframe;          // contur (true) sau plin (false)
+                                      
+    private Vector2 _pivot;           // T4: Coordonatele pivotului în spațiul lumii.  
+    private bool _hasPivot = false;   // T4: Indică dacă utilizatorul a stabilit un pivot prin clic dreapta.
 
     // Contoare afișate în titlul ferestrei.
     private readonly string _baseTitle;
@@ -187,7 +190,39 @@ public class Game : GameWindow
         }
 
 
-        // TODO (T4, facultativ): clic dreapta = pivot; tasta P ținută = rotație în jurul pivotului
+        // T4: Clic dreapta stabilește pivotul în poziția cursorului.
+        if (MouseState.IsButtonPressed(MouseButton.Right))
+        {
+            _pivot = ScreenToWorld(MouseState.Position);
+            _hasPivot = true;
+        }
+        // T4: Cât timp P este apăsată, obiectul se rotește în jurul pivotului.
+        if (_hasPivot && KeyboardState.IsKeyDown(Keys.P))
+        {
+            // Unghiul de rotație în grade, calculat în funcție de timpul dintre cadre.
+            float angle = 90.0f * dt;
+
+            // Convertim unghiul în radiani.
+            float radians = MathHelper.DegreesToRadians(angle);
+
+            // Poziția obiectului față de pivot.
+            Vector2 relativePosition = _scene[_selected].Transform.Position - _pivot;
+
+            // Rotim poziția relativă în jurul pivotului.
+            float cos = MathF.Cos(radians);
+            float sin = MathF.Sin(radians);
+
+            Vector2 rotatedPosition = new Vector2(
+                relativePosition.X * cos - relativePosition.Y * sin,
+                relativePosition.X * sin + relativePosition.Y * cos
+            );
+
+            // Actualizăm poziția obiectului.
+            _scene[_selected].Transform.Position = _pivot + rotatedPosition;
+
+            // Rotim și orientarea proprie a obiectului cu aceeași valoare.
+            _scene[_selected].Transform.Rotation += 90.0f * dt;
+        }
 
         // --- Camera: tastatura și rotița (secțiunea 6.2) -----------------------------
 
