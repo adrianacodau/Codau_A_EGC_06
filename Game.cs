@@ -28,6 +28,9 @@ public class Game : GameWindow
     private Vector2 _pivot;           // T4: Coordonatele pivotului în spațiul lumii.  
     private bool _hasPivot = false;   // T4: Indică dacă utilizatorul a stabilit un pivot prin clic dreapta.
 
+    private SceneObject _satellite = null!;         // T5: Obiectul satelit, separat de lista obiectelor selectabile.
+    private float _satelliteAngle = 0.0f;   // T5: Unghiul orbital acumulat în timp, exprimat în grade.
+
     // Contoare afișate în titlul ferestrei.
     private readonly string _baseTitle;
     private double _secondTimer;
@@ -61,6 +64,22 @@ public class Game : GameWindow
         _camera.Resize(ClientSize.X, ClientSize.Y);
 
         _shader = Shader.FromFiles("Shaders/shader.vert", "Shaders/shader.frag");
+        // T5: Satelitul este un triunghi mic, cu scara inițială 0.3.
+        /*AddObject("satelit", Shapes.Triangle(),
+                  new Transform2D
+                  {
+                      Scale = new Vector2(0.3f, 0.3f)
+                  });*/
+
+        // T5: Creăm satelitul separat, pentru a nu putea fi selectat cu Tab.
+        _satellite = new SceneObject(
+                    "satelit",
+                    Shapes.Triangle(),
+                    new Transform2D
+                    {
+                        Scale = new Vector2(0.3f, 0.3f)
+                    }
+        );
 
         // Scena: aceleași forme din laboratorul 3, acum plasate în lume prin Transform2D.
         // Depth (z) contează doar în perspectivă (tasta O, secțiunea 7.2).
@@ -116,6 +135,8 @@ public class Game : GameWindow
         // --- Obiectul selectat: tastatura (secțiunea 8) ------------------------------
 
         float dt = (float)args.Time;
+
+        _satelliteAngle = (_satelliteAngle + 90.0f * dt) % 360.0f;   // T5: Satelitul parcurge o orbită completă în 4 secunde (90°/secundă).
         SceneObject sel = _scene[_selected];
 
         // T2: Shift accelerează de 3 ori toate mișcările obiectului selectat.
@@ -280,7 +301,27 @@ public class Game : GameWindow
             obj.Mesh.Draw();
         }
 
-        // TODO (T5, facultativ): satelitul obiectului selectat
+        // T5: Calculăm matricea locală a satelitului:
+        // scalare, deplasare la distanța 1.2, apoi rotație orbitală.
+        float orbitRadians = MathHelper.DegreesToRadians(_satelliteAngle);
+
+        Matrix4 satelliteLocalMatrix =
+            _satellite.Transform.ModelMatrix
+            * Matrix4.CreateTranslation(1.2f, 0.0f, 0.0f)
+            * Matrix4.CreateRotationZ(orbitRadians);
+
+        // T5: Aplicăm matricea model a obiectului selectat.
+        // Astfel, satelitul urmărește toate transformările acestuia.
+        Matrix4 satelliteModelMatrix =
+            satelliteLocalMatrix * _scene[_selected].Transform.ModelMatrix;
+        // T5: Când obiectul selectat este scalat, și distanța aparentă a satelitului
+        // față de acesta se modifică, deoarece matricea ModelMatrix a obiectului
+        // selectat este aplicată întregii transformări locale a satelitului.
+
+        // Desenăm satelitul.
+        _shader.SetMatrix4("uModel", satelliteModelMatrix);
+        _shader.SetColor("uTint", _satellite.Tint);
+        _satellite.Mesh.Draw();
 
         // 5. Afișăm cadrul terminat: back buffer <-> front buffer.
         SwapBuffers();
