@@ -179,8 +179,13 @@ public class Game : GameWindow
 
         // --- Obiectul selectat: mouse-ul (secțiunea 9) -------------------------------
 
-        // TODO (T3): la clic stânga, obiectul selectat se mută în punctul din lume aflat sub cursor
-        //            (folosiți ScreenToWorld; Depth nu se schimbă)
+        // T3: La clic stânga, mutăm obiectul selectat în poziția cursorului,
+        // convertită din coordonate de ecran în coordonate de lume.
+        if (MouseState.IsButtonPressed(MouseButton.Left))
+        {
+            _scene[_selected].Transform.Position = ScreenToWorld(MouseState.Position);
+        }
+
 
         // TODO (T4, facultativ): clic dreapta = pivot; tasta P ținută = rotație în jurul pivotului
 
@@ -259,11 +264,42 @@ public class Game : GameWindow
     }
 
     /// <summary>Transformă poziția mouse-ului (pixeli, origine stânga-sus) în coordonate de lume.</summary>
+
     private Vector2 ScreenToWorld(Vector2 mousePixels)
     {
-        // TODO (T3): pasul 1 (pixel → NDC), apoi pasul 2 (NDC → lume, cu inversa lui view * projection)
-        return Vector2.Zero;
+        // T3: Pasul 1 - transformăm coordonatele mouse-ului din pixeli în NDC.
+        // Originea mouse-ului este în stânga-sus, iar în NDC originea este în centru.
+        float ndcX = 2.0f * mousePixels.X / ClientSize.X - 1.0f;
+        float ndcY = 1.0f - 2.0f * mousePixels.Y / ClientSize.Y;
+
+        // T3: Pasul 2 - construim matricea combinată View * Projection.
+        Matrix4 viewProjection = _camera.ViewMatrix * _camera.ProjectionMatrix;
+
+        // T3: Pasul 3 - calculăm inversa pentru a reveni din spațiul NDC în lumea scenei.
+        Matrix4 inverseViewProjection = Matrix4.Invert(viewProjection);
+
+        // T3: Determinăm adâncimea NDC corespunzătoare obiectului selectat.
+        // Astfel, obiectul își păstrează coordonata Depth și ajunge sub cursor
+        // inclusiv atunci când folosim proiecția în perspectivă.
+        float depth = _scene[_selected].Transform.Depth;
+
+        Vector4 referenceClip = Vector4.TransformRow(
+            new Vector4(0.0f, 0.0f, depth, 1.0f),
+            viewProjection);
+
+        float ndcZ = referenceClip.Z / referenceClip.W;
+
+        // T3: Pasul 4 - transformăm coordonatele NDC în coordonate de lume.
+        Vector4 worldPosition = Vector4.TransformRow(
+            new Vector4(ndcX, ndcY, ndcZ, 1.0f),
+            inverseViewProjection);
+
+        // T3: Împărțim la W pentru a obține coordonatele carteziene.
+        return new Vector2(
+            worldPosition.X / worldPosition.W,
+            worldPosition.Y / worldPosition.W);
     }
+
 
     /// <summary>Tasta R: obiectele revin la transformările inițiale, camera la starea inițială.</summary>
     private void ResetScene()
